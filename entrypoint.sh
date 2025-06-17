@@ -13,6 +13,7 @@ GITHUB_KEY=$6
 ENVIRONMENT=$7
 VERSION=$8
 INFRA_REPO=$9
+INFRA_BRANCH=${10}
 
 echo "Setting up ssh ..."
 
@@ -34,7 +35,8 @@ eval `ssh-agent -s`
 ssh-add /root/.ssh/id_rsa
 
 echo "Cloning Infra ... "
-git clone -b master --single-branch ${INFRA_REPO} caterspot_infra
+# Default to 'main' branch if not specified
+git clone -b ${INFRA_BRANCH} --single-branch ${INFRA_REPO} caterspot_infra
 cd caterspot_infra/cdk/caterspot
 
 echo "Installing dependencies ..."
