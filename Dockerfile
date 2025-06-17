@@ -1,5 +1,5 @@
 # Container image that runs your code
-FROM ruby:2.7.5-alpine
+FROM node:20-alpine
 
 LABEL maintainer "Taufek Johar<taufek@caterspot.com>"
 

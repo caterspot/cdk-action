@@ -29,6 +29,8 @@ inputs:
     required: true
   infra_repo:
     description: 'CaterSpot Infra Repo'
+  infra_branch:
+    description: 'CaterSpot Infra Branch'
 
 outputs:
   result:
@@ -47,3 +49,4 @@ runs:
     - ${{ inputs.environment }}
     - ${{ inputs.version }}
     - ${{ inputs.infra_repo }}
+    - ${{ inputs.infra_branch || 'master' }}
