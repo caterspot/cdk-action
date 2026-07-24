@@ -1,5 +1,5 @@
 # Container image that runs your code
-FROM node:20-alpine
+FROM node:22-alpine
 
 LABEL maintainer "Taufek Johar<taufek@caterspot.com>"
 
