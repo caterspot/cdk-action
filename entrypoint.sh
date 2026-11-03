@@ -40,7 +40,36 @@ git clone -b ${INFRA_BRANCH} --single-branch ${INFRA_REPO} caterspot_infra
 cd caterspot_infra/cdk/caterspot
 
 echo "Installing dependencies ..."
-yarn install
+# yarn has no deadline on a tarball download. --network-timeout only fires when
+# a connection goes silent; one that keeps trickling bytes never trips it, and
+# the install waits forever. That is what cancelled caterspot-content-helper's
+# deploys on 2026-11-03: stuck on "Fetching packages..." until the caller's
+# 15-minute job timeout, with the service silently left on the old image.
+# Reproduced against a registry trickling 1 byte / 10s: yarn hangs with no
+# error, and npm hangs too and ignores SIGTERM. Hence a KILL deadline + retry.
+INSTALL_TIMEOUT=${INSTALL_TIMEOUT:-180}
+INSTALL_ATTEMPTS=${INSTALL_ATTEMPTS:-3}
+
+# Under /github/workspace (mounted from the runner), so a caller can persist
+# it with actions/cache. With no cache restored it is simply a cold cache.
+YARN_CACHE_DIR=${YARN_CACHE_DIR:-/github/workspace/.cdk-yarn-cache}
+
+# With a lockfile, install exactly it and prefer the cache over the network.
+# Without one (older infra branches), keep the previous behaviour.
+YARN_FLAGS="--non-interactive --cache-folder ${YARN_CACHE_DIR}"
+if [ -f yarn.lock ]; then
+  YARN_FLAGS="${YARN_FLAGS} --frozen-lockfile --prefer-offline"
+fi
+
+attempt=1
+until timeout -s KILL "${INSTALL_TIMEOUT}" yarn install ${YARN_FLAGS}; do
+  if [ "${attempt}" -ge "${INSTALL_ATTEMPTS}" ]; then
+    echo "yarn install failed ${attempt} times (limit ${INSTALL_TIMEOUT}s each), giving up"
+    exit 1
+  fi
+  attempt=$((attempt + 1))
+  echo "yarn install failed or exceeded ${INSTALL_TIMEOUT}s, retrying (${attempt}/${INSTALL_ATTEMPTS}) ..."
+done
 
 echo "Deploying ${APP} to ${ENVIRONMENT} ..."
 export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
