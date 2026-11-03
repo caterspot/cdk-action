@@ -61,8 +61,32 @@ if [ -f yarn.lock ]; then
   YARN_FLAGS="${YARN_FLAGS} --frozen-lockfile --prefer-offline"
 fi
 
+# Which download stalled? yarn writes each package into the cache as it
+# arrives and adds .yarn-metadata.json only once it is complete, so an entry
+# without it is a download that never finished. Printing those, with how much
+# arrived, and the registry address this runner resolved, turns "stuck on
+# Fetching packages" into a named tarball and host.
+report_unfinished_downloads() {
+  echo "Downloads that did not finish (cache entries without .yarn-metadata.json):"
+  found=0
+  for dir in "${YARN_CACHE_DIR}"/v*/npm-*; do
+    [ -d "${dir}" ] || continue
+    set -- "${dir}"/node_modules/*/.yarn-metadata.json "${dir}"/node_modules/@*/*/.yarn-metadata.json
+    complete=0
+    for meta in "$@"; do [ -f "${meta}" ] && complete=1 && break; done
+    [ "${complete}" -eq 1 ] && continue
+    found=1
+    kb=$(du -sk "${dir}" 2>/dev/null | cut -f1)
+    echo "  ${dir##*/} (${kb:-0} KB received)"
+  done
+  [ "${found}" -eq 1 ] || echo "  none found in the cache"
+  echo "registry.yarnpkg.com resolved to:"
+  nslookup registry.yarnpkg.com 2>/dev/null | awk '/^Address/ && NR > 2 {print "  " $NF}' || true
+}
+
 attempt=1
 until timeout -s KILL "${INSTALL_TIMEOUT}" yarn install ${YARN_FLAGS}; do
+  report_unfinished_downloads
   if [ "${attempt}" -ge "${INSTALL_ATTEMPTS}" ]; then
     echo "yarn install failed ${attempt} times (limit ${INSTALL_TIMEOUT}s each), giving up"
     exit 1
